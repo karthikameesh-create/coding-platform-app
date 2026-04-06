@@ -2,23 +2,52 @@ const express = require("express");
 const router = express.Router();
 
 const Submission = require("../models/Submission");
+const Question = require("../models/Question");
 const authMiddleware = require("../middleware/authMiddleware");
 
-// 🔥 FINAL WORKING SUBMISSION
+// 🔹 Get ALL submissions
+router.get("/all", async (req, res) => {
+  try {
+    const data = await Submission.find();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+});
+
+// 🔹 Get MY submissions
+router.get("/my", authMiddleware, async (req, res) => {
+  try {
+    const data = await Submission.find({ userId: req.user.id });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json(err.message);
+  }
+});
+
+// 🔹 Submit answer
 router.post("/", authMiddleware, async (req, res) => {
   try {
     const { questionId, answer } = req.body;
 
-    const userAns = (answer || "").toString().trim();
+    const question = await Question.findById(questionId);
 
-    // 🔥 FORCE LOGIC (NO DB CONFUSION)
-    const isCorrect = userAns === "5";
-    const score = isCorrect ? 10 : 0;
+    if (!question) {
+      return res.status(404).json({ message: "Question not found" });
+    }
+
+    let isCorrect = false;
+    let score = 0;
+
+    if (question.correctAnswer.trim() === answer.trim()) {
+      isCorrect = true;
+      score = 10;
+    }
 
     const submission = new Submission({
       userId: req.user.id,
       questionId,
-      answer: userAns,
+      answer,
       score,
       isCorrect,
     });
@@ -26,13 +55,11 @@ router.post("/", authMiddleware, async (req, res) => {
     await submission.save();
 
     res.json({
-      message: "Answer submitted",
+      message: "Submission done",
       isCorrect,
       score,
     });
-
   } catch (err) {
-    console.error(err);
     res.status(500).json(err.message);
   }
 });
