@@ -3,7 +3,7 @@ const router = express.Router();
 
 const Submission = require("../models/Submission");
 const Question = require("../models/Question");
-const authMiddleware = require("../middleware/temp");
+const authMiddleware = require("../middleware/authMiddleware");
 
 // 🔹 Get ALL submissions
 router.get("/all", async (req, res) => {
