@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 
+const BASE_URL = "https://coding-platform-backend-95zi.onrender.com";
+
 function App() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -12,19 +14,8 @@ function App() {
 
   const [search, setSearch] = useState("");
   const [difficultyFilter, setDifficultyFilter] = useState("all");
-  const [darkMode, setDarkMode] = useState(false);
 
-  const [time, setTime] = useState(60);
-
-  // ⏱ Timer
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTime((t) => (t > 0 ? t - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Init
+  // 🔁 INIT
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
@@ -34,25 +25,30 @@ function App() {
     fetchQuestions();
   }, []);
 
+  // 📚 FETCH QUESTIONS
   const fetchQuestions = async () => {
-    const res = await fetch("http://localhost:5000/api/questions");
+    const res = await fetch(`${BASE_URL}/api/questions`);
     const data = await res.json();
     setQuestions(data.filter((q) => q.correctAnswer));
   };
 
+  // 📊 FETCH SUBMISSIONS
   const fetchSubmissions = async () => {
     const token = localStorage.getItem("token");
 
-    const res = await fetch("http://localhost:5000/api/submit/my", {
-      headers: { Authorization: token },
+    const res = await fetch(`${BASE_URL}/api/submit/my`, {
+      headers: {
+        Authorization: token,
+      },
     });
 
     const data = await res.json();
     setSubmissions(data);
   };
 
+  // 🔐 LOGIN
   const handleLogin = async () => {
-    const res = await fetch("http://localhost:5000/api/auth/login", {
+    const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -66,14 +62,19 @@ function App() {
       localStorage.setItem("token", data.token);
       setIsLoggedIn(true);
       fetchSubmissions();
+      alert("Login successful ✅");
+    } else {
+      alert("Login failed ❌");
     }
   };
 
+  // 🚪 LOGOUT
   const handleLogout = () => {
     localStorage.removeItem("token");
     setIsLoggedIn(false);
   };
 
+  // ✍️ INPUT
   const handleChange = (id, value) => {
     setAnswers((prev) => ({
       ...prev,
@@ -81,11 +82,12 @@ function App() {
     }));
   };
 
+  // 🚀 SUBMIT
   const handleSubmit = async (questionId) => {
     const token = localStorage.getItem("token");
     const userAns = (answers[questionId] || "").trim();
 
-    const res = await fetch("http://localhost:5000/api/submit", {
+    const res = await fetch(`${BASE_URL}/api/submit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -107,7 +109,7 @@ function App() {
     fetchSubmissions();
   };
 
-  // 📊 Stats
+  // 📊 STATS
   const totalScore = submissions.reduce((sum, s) => sum + s.score, 0);
   const totalAttempts = submissions.length;
   const correctCount = submissions.filter((s) => s.isCorrect).length;
@@ -116,7 +118,7 @@ function App() {
       ? ((correctCount / totalAttempts) * 100).toFixed(1)
       : 0;
 
-  // 🔍 Filter
+  // 🔍 FILTER
   const filtered = questions
     .filter((q) =>
       q.title.toLowerCase().includes(search.toLowerCase())
@@ -126,33 +128,46 @@ function App() {
     );
 
   return (
-    <div style={{ ...styles.container, background: darkMode ? "#111" : "#f4f6f8", color: darkMode ? "#fff" : "#000" }}>
+    <div style={styles.container}>
       <h1 style={styles.title}>🚀 Coding Platform</h1>
 
       {!isLoggedIn ? (
         <div style={styles.loginBox}>
           <h2>Login</h2>
-          <input style={styles.input} placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
-          <input style={styles.input} type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} />
-          <button style={styles.button} onClick={handleLogin}>Login</button>
+          <input
+            style={styles.input}
+            placeholder="Email"
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="Password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <button style={styles.button} onClick={handleLogin}>
+            Login
+          </button>
         </div>
       ) : (
         <>
-          <div style={styles.topBar}>
-            <button onClick={handleLogout}>Logout</button>
-            <button onClick={() => setDarkMode(!darkMode)}>🌙 Toggle</button>
-            <div>⏱ {time}s</div>
-          </div>
+          <button style={styles.logout} onClick={handleLogout}>
+            Logout
+          </button>
 
-          {/* Dashboard */}
+          {/* 📊 Dashboard */}
           <div style={styles.dashboard}>
             <div>Score: {totalScore}</div>
             <div>Attempts: {totalAttempts}</div>
             <div>Accuracy: {accuracy}%</div>
           </div>
 
-          {/* Filters */}
-          <input style={styles.input} placeholder="Search..." onChange={(e) => setSearch(e.target.value)} />
+          {/* 🔍 Filters */}
+          <input
+            style={styles.input}
+            placeholder="Search..."
+            onChange={(e) => setSearch(e.target.value)}
+          />
 
           <select onChange={(e) => setDifficultyFilter(e.target.value)}>
             <option value="all">All</option>
@@ -162,7 +177,7 @@ function App() {
           </select>
 
           <div style={styles.grid}>
-            {/* Questions */}
+            {/* QUESTIONS */}
             <div style={styles.section}>
               <h2>Questions</h2>
 
@@ -171,32 +186,39 @@ function App() {
                   <h3>{q.title}</h3>
                   <p>{q.description}</p>
 
-                  <span>{q.difficulty}</span>
+                  <span style={styles.badge}>{q.difficulty}</span>
 
                   <input
                     style={styles.input}
-                    placeholder="Answer"
+                    placeholder="Your answer"
                     onChange={(e) =>
                       handleChange(q._id, e.target.value)
                     }
                   />
 
-                  <button style={styles.button} onClick={() => handleSubmit(q._id)}>
+                  <button
+                    style={styles.button}
+                    onClick={() => handleSubmit(q._id)}
+                  >
                     Submit
                   </button>
 
                   {results[q._id] && (
                     <p>
-                      {results[q._id].isCorrect ? "✅ Correct" : "❌ Wrong"} | {results[q._id].score}
+                      {results[q._id].isCorrect
+                        ? "✅ Correct"
+                        : "❌ Wrong"}{" "}
+                      | {results[q._id].score}
                     </p>
                   )}
                 </div>
               ))}
             </div>
 
-            {/* History */}
+            {/* HISTORY */}
             <div style={styles.section}>
               <h2>History</h2>
+
               {submissions.map((s) => (
                 <div key={s._id} style={styles.history}>
                   {s.answer} → {s.isCorrect ? "✅" : "❌"} ({s.score})
@@ -210,19 +232,58 @@ function App() {
   );
 }
 
-// Styles
+// 🎨 STYLES
 const styles = {
-  container: { padding: "20px", minHeight: "100vh" },
+  container: { padding: "20px", background: "#f4f6f8" },
   title: { textAlign: "center" },
-  loginBox: { maxWidth: "300px", margin: "auto", background: "#fff", padding: "20px" },
+  loginBox: {
+    maxWidth: "300px",
+    margin: "auto",
+    background: "#fff",
+    padding: "20px",
+    borderRadius: "8px",
+  },
   grid: { display: "flex", gap: "20px" },
   section: { flex: 1 },
-  card: { background: "#fff", padding: "15px", marginBottom: "10px", borderRadius: "8px" },
-  history: { background: "#ddd", padding: "8px", marginBottom: "5px" },
-  input: { width: "100%", padding: "8px", marginBottom: "10px" },
-  button: { padding: "8px", background: "#007bff", color: "#fff", border: "none" },
-  dashboard: { display: "flex", gap: "20px", marginBottom: "10px" },
-  topBar: { display: "flex", justifyContent: "space-between", marginBottom: "10px" },
+  card: {
+    background: "#fff",
+    padding: "15px",
+    marginBottom: "10px",
+    borderRadius: "8px",
+  },
+  history: {
+    background: "#ddd",
+    padding: "8px",
+    marginBottom: "5px",
+  },
+  input: {
+    width: "100%",
+    padding: "8px",
+    marginBottom: "10px",
+  },
+  button: {
+    padding: "8px",
+    background: "#007bff",
+    color: "#fff",
+    border: "none",
+  },
+  logout: {
+    marginBottom: "10px",
+    background: "red",
+    color: "#fff",
+    padding: "8px",
+  },
+  dashboard: {
+    display: "flex",
+    gap: "20px",
+    marginBottom: "10px",
+  },
+  badge: {
+    background: "#28a745",
+    color: "#fff",
+    padding: "3px 6px",
+    borderRadius: "5px",
+  },
 };
 
 export default App;
