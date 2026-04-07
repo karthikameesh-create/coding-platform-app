@@ -1,17 +1,17 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt"); // ✅ added
 
 const User = require("../models/User");
 
 // ✅ REGISTER
 router.post("/register", async (req, res) => {
   try {
-    console.log("BODY:", req.body); // 🔥 debug
+    console.log("BODY:", req.body);
 
     const { name, email, password } = req.body;
 
-    // check required fields
     if (!name || !email || !password) {
       return res.status(400).json({ message: "All fields are required" });
     }
@@ -21,11 +21,19 @@ router.post("/register", async (req, res) => {
       return res.json({ message: "User already exists" });
     }
 
-    // ✅ include name here
-    user = new User({ name, email, password });
+    // 🔐 HASH PASSWORD
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    user = new User({
+      name,
+      email,
+      password: hashedPassword,
+    });
+
     await user.save();
 
     res.json({ message: "User registered successfully" });
+
   } catch (err) {
     console.error(err);
     res.status(500).json(err.message);
@@ -35,7 +43,7 @@ router.post("/register", async (req, res) => {
 // ✅ LOGIN
 router.post("/login", async (req, res) => {
   try {
-    console.log("LOGIN BODY:", req.body); // debug
+    console.log("LOGIN BODY:", req.body);
 
     const { email, password } = req.body;
 
@@ -45,7 +53,14 @@ router.post("/login", async (req, res) => {
 
     const user = await User.findOne({ email });
 
-    if (!user || user.password !== password) {
+    if (!user) {
+      return res.json({ message: "Invalid credentials" });
+    }
+
+    // 🔐 COMPARE HASHED PASSWORD
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (!isMatch) {
       return res.json({ message: "Invalid credentials" });
     }
 
