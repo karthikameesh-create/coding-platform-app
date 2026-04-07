@@ -1,14 +1,13 @@
-
 import React, { useState, useEffect } from "react";
 
 const BASE_URL = "https://coding-platform-backend-95zi.onrender.com";
-
 function App() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [submissions, setSubmissions] = useState([]);
   const [results, setResults] = useState({});
 
+  const [name, setName] = useState(""); // ✅ NEW
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -30,7 +29,7 @@ function App() {
   const fetchQuestions = async () => {
     const res = await fetch(`${BASE_URL}/api/questions`);
     const data = await res.json();
-    setQuestions(data.filter((q) => q.correctAnswer));
+    setQuestions(Array.isArray(data) ? data.filter((q) => q.correctAnswer) : []);
   };
 
   // 📊 FETCH SUBMISSIONS
@@ -44,11 +43,45 @@ function App() {
     });
 
     const data = await res.json();
-    setSubmissions(data);
+
+    if (Array.isArray(data)) {
+      setSubmissions(data);
+    } else {
+      setSubmissions([]);
+    }
+  };
+
+  // 🔐 REGISTER
+  const handleRegister = async () => {
+    if (!name || !email || !password) {
+      alert("Fill all fields");
+      return;
+    }
+
+    const res = await fetch(`${BASE_URL}/api/auth/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name, email, password }),
+    });
+
+    const data = await res.json();
+    alert(data.message);
+
+    // ✅ AUTO LOGIN
+    if (data.message === "User registered successfully") {
+      handleLogin();
+    }
   };
 
   // 🔐 LOGIN
   const handleLogin = async () => {
+    if (!email || !password) {
+      alert("Enter email & password");
+      return;
+    }
+
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",
       headers: {
@@ -65,7 +98,7 @@ function App() {
       fetchSubmissions();
       alert("Login successful ✅");
     } else {
-      alert("Login failed ❌");
+      alert(data.message || "Login failed ❌");
     }
   };
 
@@ -73,6 +106,7 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     setIsLoggedIn(false);
+    setSubmissions([]);
   };
 
   // ✍️ INPUT
@@ -87,6 +121,11 @@ function App() {
   const handleSubmit = async (questionId) => {
     const token = localStorage.getItem("token");
     const userAns = (answers[questionId] || "").trim();
+
+    if (!userAns) {
+      alert("Enter answer");
+      return;
+    }
 
     const res = await fetch(`${BASE_URL}/api/submit`, {
       method: "POST",
@@ -111,9 +150,18 @@ function App() {
   };
 
   // 📊 STATS
-  const totalScore = submissions.reduce((sum, s) => sum + s.score, 0);
-  const totalAttempts = submissions.length;
-  const correctCount = submissions.filter((s) => s.isCorrect).length;
+  const totalScore = Array.isArray(submissions)
+    ? submissions.reduce((sum, s) => sum + s.score, 0)
+    : 0;
+
+  const totalAttempts = Array.isArray(submissions)
+    ? submissions.length
+    : 0;
+
+  const correctCount = Array.isArray(submissions)
+    ? submissions.filter((s) => s.isCorrect).length
+    : 0;
+
   const accuracy =
     totalAttempts > 0
       ? ((correctCount / totalAttempts) * 100).toFixed(1)
@@ -134,18 +182,50 @@ function App() {
 
       {!isLoggedIn ? (
         <div style={styles.loginBox}>
-          <h2>Login</h2>
+          {/* REGISTER */}
+          <h2>Register</h2>
+
+          <input
+            style={styles.input}
+            placeholder="Name"
+            onChange={(e) => setName(e.target.value)}
+          />
+
           <input
             style={styles.input}
             placeholder="Email"
             onChange={(e) => setEmail(e.target.value)}
           />
+
           <input
             style={styles.input}
             type="password"
             placeholder="Password"
             onChange={(e) => setPassword(e.target.value)}
           />
+
+          <button style={styles.button} onClick={handleRegister}>
+            Register
+          </button>
+
+          <hr />
+
+          {/* LOGIN */}
+          <h2>Login</h2>
+
+          <input
+            style={styles.input}
+            placeholder="Email"
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <input
+            style={styles.input}
+            type="password"
+            placeholder="Password"
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
           <button style={styles.button} onClick={handleLogin}>
             Login
           </button>
@@ -156,14 +236,14 @@ function App() {
             Logout
           </button>
 
-          {/* 📊 Dashboard */}
+          {/* DASHBOARD */}
           <div style={styles.dashboard}>
             <div>Score: {totalScore}</div>
             <div>Attempts: {totalAttempts}</div>
             <div>Accuracy: {accuracy}%</div>
           </div>
 
-          {/* 🔍 Filters */}
+          {/* FILTER */}
           <input
             style={styles.input}
             placeholder="Search..."
@@ -209,7 +289,7 @@ function App() {
                       {results[q._id].isCorrect
                         ? "✅ Correct"
                         : "❌ Wrong"}{" "}
-                      | {results[q._id].score}
+                      | Score: {results[q._id].score}
                     </p>
                   )}
                 </div>
@@ -238,7 +318,7 @@ const styles = {
   container: { padding: "20px", background: "#f4f6f8" },
   title: { textAlign: "center" },
   loginBox: {
-    maxWidth: "300px",
+    maxWidth: "350px",
     margin: "auto",
     background: "#fff",
     padding: "20px",
@@ -267,6 +347,7 @@ const styles = {
     background: "#007bff",
     color: "#fff",
     border: "none",
+    cursor: "pointer",
   },
   logout: {
     marginBottom: "10px",
