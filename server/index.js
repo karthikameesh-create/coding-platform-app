@@ -27,9 +27,14 @@ app.use((req, res, next) => {
 // 🔥 CONNECT DATABASE
 connectDB();
 
-// 🔥 HEALTH CHECK (IMPORTANT for Render)
-app.get("/health", (req, res) => {
+// 🔥 HEALTH CHECK (VERY IMPORTANT for Render)
+app.all("/health", (req, res) => {
   res.status(200).send("OK");
+});
+
+// 🔥 ROOT ROUTE (handle ALL methods including HEAD)
+app.all("/", (req, res) => {
+  res.status(200).send("API is running 🚀");
 });
 
 // 🔥 ROUTES
@@ -37,11 +42,6 @@ app.use("/api/auth", authRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/submit", submissionRoutes);
 app.use("/api", protectedRoutes);
-
-// 🔥 TEST ROUTE
-app.get("/", (req, res) => {
-  res.send("API is running 🚀");
-});
 
 // 🔥 ERROR HANDLER
 app.use((err, req, res, next) => {
