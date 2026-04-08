@@ -13,10 +13,12 @@ const protectedRoutes = require("./routes/protected");
 const app = express();
 
 // 🔥 MIDDLEWARE
-app.use(cors());
-app.use(express.json()); // VERY IMPORTANT (reads JSON body)
+app.use(cors({
+  origin: "*"
+}));
+app.use(express.json());
 
-// 🔥 DEBUG (to check incoming data)
+// 🔥 DEBUG
 app.use((req, res, next) => {
   console.log("Incoming request:", req.method, req.url);
   console.log("Body:", req.body);
@@ -37,15 +39,15 @@ app.get("/", (req, res) => {
   res.send("API is running 🚀");
 });
 
-// 🔥 ERROR HANDLER (optional but useful)
+// 🔥 ERROR HANDLER
 app.use((err, req, res, next) => {
   console.error("Error:", err.message);
   res.status(500).json({ error: err.message });
 });
 
-// 🔥 START SERVER
+// 🔥 START SERVER (FIXED)
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server running on port ${PORT}`);
 });
