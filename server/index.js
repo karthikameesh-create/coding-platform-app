@@ -18,15 +18,19 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// 🔥 DEBUG
+// 🔥 DEBUG (optional)
 app.use((req, res, next) => {
   console.log("Incoming request:", req.method, req.url);
-  console.log("Body:", req.body);
   next();
 });
 
 // 🔥 CONNECT DATABASE
 connectDB();
+
+// 🔥 HEALTH CHECK (IMPORTANT for Render)
+app.get("/health", (req, res) => {
+  res.status(200).send("OK");
+});
 
 // 🔥 ROUTES
 app.use("/api/auth", authRoutes);
@@ -45,9 +49,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-// 🔥 START SERVER (FIXED)
-const PORT = process.env.PORT || 5000;
+// 🔥 START SERVER (FINAL FIX)
+const PORT = process.env.PORT;
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log("Server started on port:", PORT);
 });
