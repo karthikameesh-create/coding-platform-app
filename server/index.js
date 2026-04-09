@@ -5,11 +5,13 @@ const cors = require("cors");
 
 const connectDB = require("./config/db");
 
+// 🔹 ROUTES
 const authRoutes = require("./routes/auth");
 const questionRoutes = require("./routes/question");
 const submissionRoutes = require("./routes/submission");
 const protectedRoutes = require("./routes/protected");
-const roomRoutes = require("./routes/room"); // ✅ NEW
+const roomRoutes = require("./routes/room");
+const aiQuestionRoutes = require("./routes/aiQuestion"); // 🤖 NEW
 
 const app = express();
 
@@ -24,7 +26,7 @@ app.use(cors({
 app.use(express.json());
 
 
-// 🔥 DEBUG (optional but useful)
+// 🔥 DEBUG (optional)
 app.use((req, res, next) => {
   console.log("Incoming request:", req.method, req.url);
   next();
@@ -52,7 +54,8 @@ app.use("/api/auth", authRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/submit", submissionRoutes);
 app.use("/api", protectedRoutes);
-app.use("/api/room", roomRoutes); // ✅ NEW (IMPORTANT)
+app.use("/api/room", roomRoutes);
+app.use("/api/ai", aiQuestionRoutes); // 🤖 AI ROUTE
 
 
 // 🔥 ERROR HANDLER

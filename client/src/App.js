@@ -18,14 +18,22 @@ function App() {
   const [time, setTime] = useState(0);
   const [isTestFinished, setIsTestFinished] = useState(false);
 
+  // 🧠 ROOM
+  const [roomCode, setRoomCode] = useState("");
+  const [joinedRoom, setJoinedRoom] = useState("");
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [isStarted, setIsStarted] = useState(false);
+
   // ⏱ TIMER
   useEffect(() => {
-    let timer;
-    if (isLoggedIn && !isTestFinished) {
-      timer = setInterval(() => setTime((t) => t + 1), 1000);
-    }
+    if (!isStarted) return;
+
+    const timer = setInterval(() => {
+      setTime((t) => t + 1);
+    }, 1000);
+
     return () => clearInterval(timer);
-  }, [isLoggedIn, isTestFinished]);
+  }, [isStarted]);
 
   useEffect(() => {
     fetchQuestions();
@@ -37,19 +45,17 @@ function App() {
     setQuestions(data);
   };
 
-  // 🔐 REGISTER
+  // 🔐 AUTH
   const handleRegister = async () => {
     const res = await fetch(`${BASE_URL}/api/auth/register`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({ name, email, password }),
     });
-
     const data = await res.json();
     alert(data.message);
   };
 
-  // 🔐 LOGIN
   const handleLogin = async () => {
     const res = await fetch(`${BASE_URL}/api/auth/login`, {
       method: "POST",
@@ -58,54 +64,86 @@ function App() {
     });
 
     const data = await res.json();
-
     if (data.token) {
       localStorage.setItem("token", data.token);
       setUser(data.user);
       setIsLoggedIn(true);
     } else {
-      alert(data.message);
+      alert("Login failed");
     }
   };
 
-  // 🚪 LOGOUT
   const handleLogout = () => {
     localStorage.removeItem("token");
     setIsLoggedIn(false);
     setUser(null);
   };
 
+  // 🏠 ROOM
+  const createRoom = async () => {
+    const res = await fetch(`${BASE_URL}/api/room/create`, { method: "POST" });
+    const data = await res.json();
+    setRoomCode(data.code);
+    setJoinedRoom(data.code);
+  };
+
+  const joinRoom = async () => {
+    const res = await fetch(`${BASE_URL}/api/room/join`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ code: roomCode, name: user.name }),
+    });
+
+    const data = await res.json();
+    if (data.room) setJoinedRoom(roomCode);
+    else alert("Room not found");
+  };
+
+  const startTest = async () => {
+    await fetch(`${BASE_URL}/api/room/start`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ code: joinedRoom }),
+    });
+  };
+
+  // 🔄 ROOM STATUS
+  useEffect(() => {
+    if (!joinedRoom) return;
+
+    const interval = setInterval(async () => {
+      const res = await fetch(`${BASE_URL}/api/room/status/${joinedRoom}`);
+      const data = await res.json();
+
+      if (data.isStarted) setIsStarted(true);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [joinedRoom]);
+
+  // 🏆 LEADERBOARD
+  useEffect(() => {
+    if (!joinedRoom) return;
+
+    const interval = setInterval(async () => {
+      const res = await fetch(`${BASE_URL}/api/room/${joinedRoom}`);
+      const data = await res.json();
+      setLeaderboard(data);
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [joinedRoom]);
+
   // ✍️ INPUT
   const handleChange = (id, value) => {
     setAnswers((prev) => ({ ...prev, [id]: value }));
   };
 
-  // 🎯 DIFFICULTY SCORING
   const getScoreByDifficulty = (difficulty) => {
     if (difficulty === "easy") return 5;
     if (difficulty === "medium") return 10;
     if (difficulty === "hard") return 15;
     return 0;
-  };
-
-  // 🤖 AI Explanation
-  const getAIExplanation = (question) => {
-    const desc = question.description.toLowerCase();
-
-    if (desc.includes("2, 6, 12")) {
-      return "Pattern increases by +4, +6, +8, +10 → next is 42.";
-    }
-    if (desc.includes("1, 4, 9")) {
-      return "Perfect squares → 1²,2²,3²,4² → next is 25.";
-    }
-    if (desc.includes("3, 9, 27")) {
-      return "Multiply by 3 → next is 81.";
-    }
-    if (desc.includes("mirror")) {
-      return "Mirror time = 11:60 - time → 8:45.";
-    }
-
-    return "Analyze step by step carefully.";
   };
 
   // 🚀 SUBMIT
@@ -132,14 +170,10 @@ function App() {
 
     setResults((prev) => ({
       ...prev,
-      [question._id]: {
-        ...data,
-        score,
-      },
+      [question._id]: { ...data, score },
     }));
   };
 
-  // 👉 NAVIGATION
   const nextQuestion = () => {
     if (!results[questions[currentIndex]._id]) {
       alert("Submit answer first!");
@@ -153,33 +187,26 @@ function App() {
     }
   };
 
-  const prevQuestion = () => {
-    if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
-  };
-
   // 📊 RESULTS
   const allResults = Object.values(results);
-  const totalAttempts = allResults.length;
   const correctCount = allResults.filter(r => r.isCorrect).length;
-  const wrongCount = totalAttempts - correctCount;
-
+  const wrongCount = allResults.length - correctCount;
   const totalScore = allResults.reduce((sum, r) => sum + r.score, 0);
 
-  const accuracy =
-    totalAttempts > 0 ? (correctCount / totalAttempts) * 100 : 0;
-
-  const timeScore = Math.max(0, 100 - Math.floor(time / 2));
-
-  const finalScore = Math.round((accuracy * 0.5) + (timeScore * 0.2) + totalScore);
-
-  // 🏆 RANKING
-  const getRank = (score) => {
-    if (score >= 90) return 1;
-    if (score >= 75) return 2;
-    if (score >= 60) return 3;
-    if (score >= 40) return 4;
-    return 5;
-  };
+  // 📤 SEND SCORE
+  useEffect(() => {
+    if (isTestFinished && joinedRoom) {
+      fetch(`${BASE_URL}/api/room/update-score`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          code: joinedRoom,
+          name: user.name,
+          score: totalScore,
+        }),
+      });
+    }
+  }, [isTestFinished]);
 
   return (
     <div style={styles.container}>
@@ -187,100 +214,94 @@ function App() {
 
       {!isLoggedIn ? (
         <div style={styles.authBox}>
-          <h2>Login / Register</h2>
-
           <input placeholder="Name" onChange={(e) => setName(e.target.value)} />
           <input placeholder="Email" onChange={(e) => setEmail(e.target.value)} />
           <input type="password" placeholder="Password" onChange={(e) => setPassword(e.target.value)} />
-
           <button onClick={handleRegister}>Register</button>
-          <button onClick={handleLogin} style={{ marginLeft: "10px" }}>
-            Login
-          </button>
+          <button onClick={handleLogin}>Login</button>
         </div>
+
+      ) : !joinedRoom ? (
+        <div style={styles.card}>
+          <h2>🎮 Multiplayer</h2>
+          <button onClick={createRoom}>Create Room</button>
+
+          <input
+            placeholder="Enter Code"
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+          />
+          <button onClick={joinRoom}>Join</button>
+
+          <button onClick={handleLogout}>Logout</button>
+        </div>
+
+      ) : !isStarted ? (
+        <div style={styles.card}>
+          <h2>Room Code: {joinedRoom}</h2>
+          <button onClick={startTest}>Start Test</button>
+        </div>
+
       ) : isTestFinished ? (
         <div style={styles.resultBox}>
-          <h2>📊 Final Report</h2>
+          <h2>Final Score: {totalScore}</h2>
+          <p>✅ {correctCount} | ❌ {wrongCount}</p>
 
-          <h3>👤 {user?.name}</h3>
+          <h3>🏆 Leaderboard</h3>
+          {leaderboard.map((u, i) => (
+            <p key={i}>
+              #{i + 1} {u.name} — {u.score}
+            </p>
+          ))}
 
-          <p>✅ Correct: {correctCount}</p>
-          <p>❌ Wrong: {wrongCount}</p>
-          <p>🎯 Accuracy: {accuracy.toFixed(1)}%</p>
-
-          <p>🏆 Score: {totalScore}</p>
-
-          <p>⏱ Time: {time}s</p>
-
-          <h2>🧠 Final Score: {finalScore}</h2>
-          <h2>🏆 Rank: #{getRank(finalScore)}</h2>
-
-          <button onClick={() => window.location.reload()}>
-            🔄 Retake
-          </button>
+          <button onClick={() => window.location.reload()}>Play Again</button>
         </div>
+
       ) : (
-        <>
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <p>⏱ Time: {time}s</p>
+        <div>
+          <div style={styles.topBar}>
+            <p>⏱ {time}s</p>
             <button onClick={handleLogout}>Logout</button>
           </div>
 
-          {questions.length > 0 && (
-            <div style={styles.card}>
-              <h3>Question {currentIndex + 1}/{questions.length}</h3>
+          <div style={styles.card}>
+            <h3>Question {currentIndex + 1}/{questions.length}</h3>
+            <h2>{questions[currentIndex]?.title}</h2>
+            <p>{questions[currentIndex]?.description}</p>
 
-              <h2>{questions[currentIndex].title}</h2>
-              <p>{questions[currentIndex].description}</p>
+            <input
+              onChange={(e) =>
+                handleChange(questions[currentIndex]._id, e.target.value)
+              }
+            />
 
-              <input
-                value={answers[questions[currentIndex]._id] || ""}
-                onChange={(e) =>
-                  handleChange(questions[currentIndex]._id, e.target.value)
-                }
-              />
+            <button onClick={() => handleSubmit(questions[currentIndex])}>
+              Submit
+            </button>
 
-              <button onClick={() => handleSubmit(questions[currentIndex])}>
-                Submit
-              </button>
+            <button onClick={nextQuestion}>Next</button>
+          </div>
 
-              {results[questions[currentIndex]._id] && (
-                <div style={{ marginTop: "10px" }}>
-                  <p>
-                    {results[questions[currentIndex]._id].isCorrect
-                      ? "✅ Correct"
-                      : "❌ Wrong"}{" "}
-                    | +{results[questions[currentIndex]._id].score}
-                  </p>
-
-                  {!results[questions[currentIndex]._id].isCorrect && (
-                    <div style={{ color: "#ffcc00" }}>
-                      <p>✅ Answer: {questions[currentIndex].correctAnswer}</p>
-                      <p>🤖 {getAIExplanation(questions[currentIndex])}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div style={{ marginTop: "10px" }}>
-                <button onClick={prevQuestion}>⬅ Prev</button>
-                <button onClick={nextQuestion} style={{ marginLeft: "10px" }}>
-                  {currentIndex === questions.length - 1 ? "Finish" : "Next ➡"}
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+          <div style={styles.card}>
+            <h3>🏆 Live Leaderboard</h3>
+            {leaderboard.map((u, i) => (
+              <p key={i}>
+                #{i + 1} {u.name} — {u.score}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
 const styles = {
-  container: { padding: "20px", background: "#121212", color: "#fff", minHeight: "100vh" },
-  authBox: { maxWidth: "300px", margin: "auto" },
-  card: { background: "#1e1e1e", padding: "15px", marginTop: "20px" },
-  resultBox: { textAlign: "center", marginTop: "50px" }
+  container: { padding: "20px", background: "#0f172a", color: "#fff", minHeight: "100vh" },
+  authBox: { maxWidth: "300px", margin: "auto", display: "flex", flexDirection: "column", gap: "10px" },
+  card: { background: "#1e293b", padding: "20px", marginTop: "20px", borderRadius: "10px" },
+  resultBox: { textAlign: "center", marginTop: "50px" },
+  topBar: { display: "flex", justifyContent: "space-between" }
 };
 
 export default App;
