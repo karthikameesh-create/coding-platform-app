@@ -1,46 +1,43 @@
 const express = require("express");
-const router = express.Router();
-const OpenAI = require("openai");
+const router = express.Router(); // <--- THIS WAS MISSING
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 router.post("/generate", async (req, res) => {
   try {
     const { topic, difficulty } = req.body;
 
-    const prompt = `
-Generate 5 quiz questions on topic "${topic}" with difficulty "${difficulty}".
+    // Use 'gemini-1.5-flash-latest' for the most stable connection
+    const model = genAI.getGenerativeModel({
+      model: "gemini-3.1-flash-lite-preview",
+      generationConfig: {
+        responseMimeType: "application/json",
+      },
+    });
 
-Return ONLY valid JSON array like this:
+    const prompt = `
+Generate 5 multiple choice quiz questions on "${topic}" with difficulty "${difficulty}".
+
+Return ONLY JSON array:
 [
   {
     "title": "Short title",
-    "description": "Question text",
-    "difficulty": "${difficulty}",
-    "correctAnswer": "Answer"
+    "description": "Question",
+    "options": ["A", "B", "C", "D"],
+    "correctAnswer": "A"
   }
 ]
 `;
 
-    const response = await client.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-    });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-    let text = response.choices[0].message.content;
-
-    // 🔥 FIX JSON PARSING (VERY IMPORTANT)
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    const questions = JSON.parse(text);
-
-    res.json(questions);
+    res.json(JSON.parse(text));
 
   } catch (err) {
-    console.error("AI ERROR:", err.message);
-    res.status(500).json({ error: "AI generation failed" });
+    console.error("--- GEMINI API ERROR ---", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
