@@ -9,39 +9,51 @@ const authRoutes = require("./routes/auth");
 const questionRoutes = require("./routes/question");
 const submissionRoutes = require("./routes/submission");
 const protectedRoutes = require("./routes/protected");
+const roomRoutes = require("./routes/room"); // ✅ NEW
 
 const app = express();
 
+
 // 🔥 MIDDLEWARE
 app.use(cors({
-  origin: "*"
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
 app.use(express.json());
 
-// 🔥 DEBUG (optional)
+
+// 🔥 DEBUG (optional but useful)
 app.use((req, res, next) => {
   console.log("Incoming request:", req.method, req.url);
   next();
 });
 
+
 // 🔥 CONNECT DATABASE
 connectDB();
 
-// 🔥 HEALTH CHECK (VERY IMPORTANT for Render)
-app.all("/health", (req, res) => {
+
+// 🔥 HEALTH CHECK (Render uses this)
+app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-// 🔥 ROOT ROUTE (handle ALL methods including HEAD)
-app.all("/", (req, res) => {
+
+// 🔥 ROOT ROUTE
+app.get("/", (req, res) => {
   res.status(200).send("API is running 🚀");
 });
+
 
 // 🔥 ROUTES
 app.use("/api/auth", authRoutes);
 app.use("/api/questions", questionRoutes);
 app.use("/api/submit", submissionRoutes);
 app.use("/api", protectedRoutes);
+app.use("/api/room", roomRoutes); // ✅ NEW (IMPORTANT)
+
 
 // 🔥 ERROR HANDLER
 app.use((err, req, res, next) => {
@@ -49,9 +61,10 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message });
 });
 
-// 🔥 START SERVER (FINAL FIX)
-const PORT = process.env.PORT;
+
+// 🔥 START SERVER
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log("Server started on port:", PORT);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
