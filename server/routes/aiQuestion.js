@@ -1,14 +1,13 @@
 const express = require("express");
-const router = express.Router(); // <--- THIS WAS MISSING
+const router = express.Router();
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 router.post("/generate", async (req, res) => {
   try {
-    const { topic, difficulty } = req.body;
+    const { topic, difficulty, count } = req.body;
 
-    // Use 'gemini-1.5-flash-latest' for the most stable connection
     const model = genAI.getGenerativeModel({
       model: "gemini-3.1-flash-lite-preview",
       generationConfig: {
@@ -17,7 +16,7 @@ router.post("/generate", async (req, res) => {
     });
 
     const prompt = `
-Generate 5 multiple choice quiz questions on "${topic}" with difficulty "${difficulty}".
+Generate ${count || 5} multiple choice quiz questions on "${topic}" with difficulty "${difficulty}".
 
 Return ONLY JSON array:
 [

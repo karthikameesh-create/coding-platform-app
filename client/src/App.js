@@ -1,5 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { io } from "socket.io-client";
 
+const socket = io("http://localhost:5000");
 const BASE_URL = "http://localhost:5000";
 
 export default function App() {
@@ -31,8 +33,41 @@ export default function App() {
   const [roomCode, setRoomCode] = useState("");
   const [joinedRoom, setJoinedRoom] = useState("");
 
-  // LEADERBOARD
+  // PLAYERS + LEADERBOARD
+  const [players, setPlayers] = useState([]);
   const [leaderboard, setLeaderboard] = useState([]);
+
+  // ✅ NEW (animation)
+  const [celebrate, setCelebrate] = useState(false);
+
+  // SOCKET LISTENERS
+  useEffect(() => {
+    socket.on("players", (data) => {
+      setPlayers(data);
+    });
+
+    socket.on("quizStarted", (questions) => {
+      if (!Array.isArray(questions)) return;
+
+     const withIds = questions.slice(0, numQuestions).map((q, i) => ({
+  ...q,
+  _id: "q" + i
+}));
+      setQuestions(withIds);
+      setStarted(true);
+      startTimer();
+    });
+
+    socket.on("leaderboard", (data) => {
+      setLeaderboard(data);
+    });
+
+    return () => {
+      socket.off("players");
+      socket.off("quizStarted");
+      socket.off("leaderboard");
+    };
+  }, [numQuestions]);
 
   // AUTH
   const handleAuth = async () => {
@@ -60,59 +95,51 @@ export default function App() {
   };
 
   // ROOM
-  const createRoom = async () => {
-    const res = await fetch(`${BASE_URL}/api/room/create`, {
-      method: "POST"
+  const createRoom = () => {
+    socket.emit("createRoom", { username }, (code) => {
+      alert("Room Code: " + code);
+      setJoinedRoom(code);
     });
-
-    const data = await res.json();
-
-    alert("Room Code: " + data.code);
-    setJoinedRoom(data.code);
   };
 
-  const joinRoom = async () => {
-    await fetch(`${BASE_URL}/api/room/join`, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ code: roomCode })
+  const joinRoom = () => {
+    socket.emit("joinRoom", { code: roomCode, username }, () => {
+      setJoinedRoom(roomCode);
     });
-
-    setJoinedRoom(roomCode);
   };
 
-  // AI QUESTIONS
-  const generateQuestions = async () => {
+  // START QUIZ
+  const startQuiz = async () => {
     const res = await fetch(`${BASE_URL}/api/ai/generate`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({ topic, difficulty })
+      body: JSON.stringify({ 
+  topic, 
+  difficulty, 
+  count: numQuestions 
+})
     });
 
     const data = await res.json();
 
-    const expanded = [];
-    for (let i = 0; i < 10; i++) expanded.push(...data);
+    if (!Array.isArray(data)) {
+      alert("AI failed");
+      return;
+    }
 
-    const withIds = expanded.slice(0, numQuestions).map((q, i) => ({
-      ...q,
-      _id: "q" + i
-    }));
-
-    setQuestions(withIds);
-    setStarted(true);
-    startTimer();
+    socket.emit("startQuiz", {
+      code: joinedRoom,
+      questions: data
+    });
   };
 
   // TIMER
   const startTimer = () => {
     let t = 0;
-
     const interval = setInterval(() => {
       t++;
       setTime(t);
     }, 1000);
-
     setTimerRef(interval);
   };
 
@@ -130,7 +157,12 @@ export default function App() {
       setCurrentIndex(currentIndex + 1);
     } else {
       clearInterval(timerRef);
-      finishQuiz();
+      submitScore();
+      setFinished(true);
+
+      // ✅ NEW (animation trigger)
+      setCelebrate(true);
+      setTimeout(() => setCelebrate(false), 4000);
     }
   };
 
@@ -150,29 +182,39 @@ export default function App() {
     return { correct, accuracy, finalScore };
   };
 
-  const finishQuiz = () => {
+  const submitScore = () => {
     const result = calculateScore();
 
-    const newEntry = {
-      name: username || "Player",
-      score: result.finalScore
-    };
-
-    setLeaderboard(prev =>
-      [...prev, newEntry].sort((a, b) => b.score - a.score)
-    );
-
-    setFinished(true);
+    socket.emit("submitScore", {
+      code: joinedRoom,
+      username,
+      score: result.finalScore,
+      correct: result.correct,
+      total: questions.length
+    });
   };
 
   const result = calculateScore();
 
   return (
     <div style={styles.container}>
+
+      {/* ✅ NEW (animation UI) */}
+      {celebrate && (
+        <div style={{
+          position: "absolute",
+          top: 0,
+          width: "100%",
+          textAlign: "center",
+          fontSize: "30px"
+        }}>
+          🎉🎉🎉🎉🎉
+        </div>
+      )}
+
       <div style={styles.card}>
         <h1>🧠 BrainScore AI</h1>
 
-        {/* AUTH */}
         {!isLoggedIn ? (
           <>
             <h2>{isLogin ? "Login" : "Register"}</h2>
@@ -208,7 +250,13 @@ export default function App() {
           </>
         ) : !started ? (
           <>
-            <h2>Generate Quiz</h2>
+            <h2>🎮 Room: {joinedRoom}</h2>
+
+            <p>👥 Players: {players.length}</p>
+
+            {players.map((p, i) => (
+              <p key={i}>• {p.username}</p>
+            ))}
 
             <input placeholder="Topic" onChange={e => setTopic(e.target.value)} style={styles.input}/>
             <select onChange={e => setDifficulty(e.target.value)} style={styles.input}>
@@ -224,7 +272,7 @@ export default function App() {
               style={styles.input}
             />
 
-            <button style={styles.button} onClick={generateQuestions}>
+            <button style={styles.button} onClick={startQuiz}>
               Start Quiz
             </button>
           </>
@@ -238,9 +286,30 @@ export default function App() {
 
             <h2>🔥 Score: {result.finalScore}</h2>
 
+            {/* ✅ NEW PODIUM */}
+            {leaderboard.length > 0 && (
+              <div style={{
+                display: "flex",
+                justifyContent: "space-around",
+                marginBottom: "15px"
+              }}>
+                {leaderboard[1] && <div>🥈 {leaderboard[1].username}</div>}
+                <div style={{ fontWeight: "bold" }}>
+                  🥇 {leaderboard[0].username}
+                </div>
+                {leaderboard[2] && <div>🥉 {leaderboard[2].username}</div>}
+              </div>
+            )}
+
             <h3>🏆 Leaderboard</h3>
+
             {leaderboard.map((p, i) => (
-              <p key={i}>{i + 1}. {p.name} - {p.score}</p>
+              <div key={i} style={{ marginBottom: "10px" }}>
+                <strong>{i + 1}. {p.username}</strong><br/>
+                Score: {p.score} <br/>
+                ✅ Correct: {p.correct ?? 0} <br/>
+                ❌ Wrong: {(p.total ?? 0) - (p.correct ?? 0)}
+              </div>
             ))}
           </>
         ) : (
